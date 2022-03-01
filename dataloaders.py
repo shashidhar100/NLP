@@ -9,14 +9,16 @@ from torch.utils.data import Dataset
 from preprocessor import Preprocessor
 
 
-
-
 class Dataset:
     def __init__(self,dataset_name):
         self.dataset_name = dataset_name
         self.dataset_map_dic = {
             "twitter": Twitter
         }
+        name_list = list(self.dataset_map_dic.keys())
+        if dataset_name not in name_list:
+            raise ValueError("dataset_name should be one of these {}".format(name_list))
+        self.dataset_name = dataset_name
     
     def __call__(self,**kwargs):
         return self.dataset_map_dic[self.dataset_name](**kwargs)
