@@ -55,7 +55,7 @@ class BaseTrainer:
         self.metric = Metric(name=name)(**kwargs)
 
     def save_dir(self):
-        outputs_dir = os.path.join("..","Outputs")
+        outputs_dir = os.path.join("Outputs")
         if not os.path.exists(outputs_dir):
             os.mkdir(outputs_dir)
         dataset_dir = os.path.join(outputs_dir,self.dataset_name)
