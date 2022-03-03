@@ -1,7 +1,11 @@
+from asyncio.log import logger
 from turtle import forward
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
+import logging
+
+logger = logging.getLogger("models")
 
 
 class Model:
@@ -25,12 +29,10 @@ class LogisticRegression(nn.Module):
         self.linear = nn.Linear(input_size,output_size)
         torch.nn.init.zeros_(self.linear.weight)
         torch.nn.init.zeros_(self.linear.bias)
+        logger.info("hello")
     
     def forward(self,x):
         return torch.sigmoid(self.linear(x))
     
     def __str__(self):
         return "Logistic Regression Model"
-
-lr = LogisticRegression(2,1)
-print(lr)

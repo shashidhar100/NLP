@@ -1,5 +1,7 @@
 import nltk
 nltk.download("twitter_samples")
+nltk.download('stopwords') # downloading stop words.
+nltk.download("wordnet")
 from nltk.corpus import twitter_samples
 import random
 import numpy as np
@@ -24,7 +26,13 @@ class Dataset:
         return self.dataset_map_dic[self.dataset_name](**kwargs)
 
 class Twitter(Dataset):
-    def __init__(self,train=True,**kwargs):
+    def __init__(self,train=True,rm_stop = False,
+                rm_punc = False,
+                lema = True,
+                stem = False,
+                n_gram_feat = False,
+                n_gram_method = None,
+                **kwargs):
         self.train = train
         all_positive_tweets = twitter_samples.strings('positive_tweets.json')
         all_negative_tweets = twitter_samples.strings('negative_tweets.json')
@@ -41,7 +49,14 @@ class Twitter(Dataset):
         self.train_y = np.append(np.ones((len(pos_train_x), 1)), np.zeros((len(neg_train_x), 1)), axis=0)
         self.test_y = np.append(np.ones((len(pos_test_x), 1)), np.zeros((len(neg_test_x), 1)), axis=0)
         
-        self.preprocessor =  Preprocessor(name="LR_twitter")(train_x=self.train_x,train_y=self.train_y)
+        self.preprocessor =  Preprocessor(name="LR_twitter")(train_x=self.train_x,
+                                                            train_y=self.train_y,
+                                                            rm_punc = rm_punc,
+                                                            lema = lema,
+                                                            stem = stem,
+                                                            n_gram_feat = n_gram_feat,
+                                                            n_gram_method = n_gram_method,
+                                                            **kwargs)
         
     def __getitem__(self,index):
         if self.train:

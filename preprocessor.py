@@ -4,7 +4,10 @@ import numpy as np
 
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
+from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import TweetTokenizer
+from torch import le
+from sklearn.feature_extraction.text import CountVectorizer,TfidfVectorizer
 
 class Preprocessor:
     def __init__(self,name="LR_twitter"):
@@ -21,14 +24,41 @@ class Preprocessor:
 
 
 class LR_Twitter:
-    def __init__(self,**kwargs):
-        self.stemmer = PorterStemmer()
-        self.stopwords_english = stopwords.words('english')
-        self.tokenizer = TweetTokenizer(preserve_case=False, strip_handles=True,
+    def __init__(self,
+                train_x=None,
+                train_y=None,
+                rm_stop = False,
+                rm_punc = False,
+                lema = True,
+                stem = False,
+                n_gram_feat = False,
+                n_gram_method = None,
+                **kwargs
+                ):
+        self.rm_stop = rm_stop
+        self.rm_punc = rm_punc
+        self.lema = lema
+        self.stem = stem
+        self.n_gram_feat = n_gram_feat
+        self.n_gram_method = n_gram_method
+        if n_gram_feat:
+            self.n_gram_methods_map = {"bog":CountVectorizer,"tfidf":TfidfVectorizer}
+            if self.n_gram_method == None:
+                self.n_gram_method = "bog"
+            self.build_word_matrix(train_x)
+        else:
+            self.tokenizer = TweetTokenizer(preserve_case=False, strip_handles=True,
                                 reduce_len=True)
-        self.freqs = self.build_freqs(kwargs["train_x"],kwargs["train_y"])
+            if self.lema:
+                self.lemmatizer = WordNetLemmatizer()
+            if self.stem:
+                self.stemmer = PorterStemmer()
+            self.freqs = self.build_freqs(train_x,train_y)
+            self.stopwords_english = stopwords.words('english')
+
+        
     
-    def process_tweet(self,tweet):
+    def process_tweet(self,tweet,rm_stop=False,rm_punc=False,stem=False,lema=True):
         """Process tweet function.
         Input:
             tweet: a string containing a tweet
@@ -51,11 +81,19 @@ class LR_Twitter:
 
         tweets_clean = []
         for word in tweet_tokens:
-            if (word not in self.stopwords_english and  # remove stopwords
-                    word not in string.punctuation):  # remove punctuation
-                # tweets_clean.append(word)
-                stem_word = self.stemmer.stem(word)  # stemming word
-                tweets_clean.append(stem_word)
+            if rm_stop:
+                if word in self.stopwords_english:
+                    continue
+            if rm_punc:
+                if word in string.punctuation:
+                    continue
+            if stem:
+                word = self.stemmer.stem(word)
+            
+            if lema and stem==False:
+                word = self.lemmatizer.lemmatize(word)
+                
+            tweets_clean.append(word)
 
         return tweets_clean
 
@@ -79,7 +117,7 @@ class LR_Twitter:
         # and over all processed words in each tweet.
         freqs = {}
         for y, tweet in zip(yslist, tweets):
-            for word in self.process_tweet(tweet):
+            for word in self.process_tweet(tweet,rm_punc=self.rm_punc,rm_stop=self.rm_stop,lema=self.lema,stem=self.stem):
                 pair = (word, y)
                 if pair in freqs:
                     freqs[pair] += 1
@@ -88,30 +126,49 @@ class LR_Twitter:
 
         return freqs
     
-    def extract_features(self,tweet,freqs):
+    def extract_features(self,tweet,freqs,if_bias=False):
         '''
         Input: 
             tweet: a list of words for one tweet
             freqs: a dictionary corresponding to the frequencies of each tuple (word, label)
         Output: 
-            x: a feature vector of dimension (1,3)
+            x: a feature vector of dimension (1,3) or (1,2)
         '''
         # process_tweet tokenizes, stems, and removes stopwords
-        word_l = self.process_tweet(tweet)
-        x = np.zeros((1, 2)) 
-        for word in word_l:
-            x[0,0] += freqs.get((word, 1.0),0)
-            x[0,1] += freqs.get((word, 0.0),0)
-            
+        word_l = self.process_tweet(tweet,rm_punc=self.rm_punc,rm_stop=self.rm_stop,lema=self.lema,stem=self.stem)
+        if if_bias:
+            x = np.zeros((1, 3))
+            x[0,0] = 1.0
+            for word in word_l:
+                x[0,1] += freqs.get((word, 1.0),0)
+                x[0,2] += freqs.get((word, 0.0),0)
+        else:
+            x = np.zeros((1,2))
+            for word in word_l:
+                x[0,0] += freqs.get((word, 1.0),0)
+                x[0,1] += freqs.get((word, 0.0),0)   
         return x
+
+    def build_word_matrix(self,X,**kwargs):
+        self.vectorizer = self.n_gram_methods_map[self.n_gram_method](**kwargs).fit(X)
     
-    def __call__(self,x,y,**kwargs):
-        features = self.extract_features(x,self.freqs)
-        return features,y
+    def extract_n_gram_feats(self,x):
+        return self.vectorizer.transform(x).toarray()
+
+
+
+        
+
+    
+    def __call__(self,x,y):
+        if self.n_gram_feat:
+            return self.extract_n_gram_feats([x]),y
+        else:
+            return self.extract_features(x,self.freqs),y
     
     
     def __str__(self):
-        return "Logistic Regression Preprocessor for Twitter dataset"
+        return "Preprocessor for Twitter dataset"
 
         
     

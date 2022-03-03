@@ -1,7 +1,11 @@
 # from sklearn.utils import shuffle
+from re import M, S
 import torch
 import torch.nn as nn
 from tqdm import tqdm
+import nltk
+nltk.download('omw-1.4')
+import numpy as np
 
 
 from dataloaders import Dataset
@@ -13,12 +17,35 @@ from optimizers import Optimizer
 from preprocessor import Preprocessor
 from torch.utils.data import DataLoader
 import os
+from sklearn.naive_bayes import MultinomialNB,BernoulliNB,CategoricalNB,ComplementNB,GaussianNB
 from torch.utils.tensorboard import SummaryWriter
+import logging
+logger = logging.getLogger()
+
+
+import sys
+
+class Logger(object):
+    def __init__(self,path="logfile.log"):
+        self.terminal = sys.stdout
+        self.log = open(path, "a")
+   
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)  
+
+    def flush(self):
+        # this flush method is needed for python 3 compatibility.
+        # this handles the flush command by doing nothing.
+        # you might want to specify some extra behavior here.
+        pass  
+
 
 class Trainer:
-    def __init__(self,name="Classifier"):
+    def __init__(self,name="classifier"):
         self.name_map_dic = {
-                              "Classifier": Classifier  
+                              "classifier": Classifier,
+                              "naive_bayes" : NaiveBayesClassifier
                             }
         name_list = list(self.name_map_dic.keys())
         if name not in name_list:
@@ -74,6 +101,26 @@ class BaseTrainer:
         if not os.path.exists(experiment_dir):
             os.mkdir(experiment_dir)
         self.save_dir_path = experiment_dir
+    
+    def log_output(self):
+        
+
+        # Create handlers
+        c_handler = logging.StreamHandler()
+        f_handler = logging.FileHandler(os.path.join(self.save_dir_path,"logs.log"))
+        logger.setLevel(logging.INFO)
+
+        # Create formatters and add it to handlers
+        c_format = logging.Formatter('%(levelname)s - %(message)s')
+        f_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        c_handler.setFormatter(c_format)
+        f_handler.setFormatter(f_format)
+
+        # Add handlers to the logger
+        logger.addHandler(c_handler)
+        logger.addHandler(f_handler)
+
+
 
         
 
@@ -85,6 +132,7 @@ class Classifier(BaseTrainer):
                         
     def __call__(self,epochs=100,**kwargs):
         self.save_dir()
+        self.log_output()
         writer = SummaryWriter(self.save_dir_path)
         for epoch in range(1,epochs+1):
             train_loss = 0.0
@@ -142,22 +190,66 @@ class Classifier(BaseTrainer):
             test_loss = avg_loss
             test_accuracy = avg_accuracy
 
-            writer.add_scalar("Train Loss",train_loss,epoch)
-            writer.add_scalar("Test Loss",test_loss,epoch)
-            writer.add_scalar("Train Accuracy",train_accuracy,epoch)
-            writer.add_scalar("Test Accuracy",test_accuracy,epoch)
+            writer.add_scalars("Loss",{"Train":train_loss,"Test":test_loss},epoch)
+            writer.add_scalars("Accuracy",{"Train":train_accuracy,"Test":test_accuracy},epoch)
 
             print("Epoch {}/{}: 'Train Loss': {} 'Test Loss': {} 'Train Accuracy': {} 'Test Accuracy': {}\n".format(epoch,epochs,train_loss,test_loss,train_accuracy,test_accuracy))
+            logger.info("Epoch {}/{}: 'Train Loss': {} 'Test Loss': {} 'Train Accuracy': {} 'Test Accuracy': {}\n".format(epoch,epochs,train_loss,test_loss,train_accuracy,test_accuracy))
+
+class NaiveBayesClassifier(BaseTrainer):
+    def __init__(self,**kwargs):
+        super(NaiveBayesClassifier,self).__init__()
+        
+    def get_data(self, dataset_name="twitter", batch_size=None, shuffle=True, num_workers=0, **kwargs):
+        train_data =  Dataset(dataset_name=dataset_name)(train=True,**kwargs)
+        test_data =  Dataset(dataset_name=dataset_name)(train=False,**kwargs)
+        
+        self.trainloader = DataLoader(train_data,batch_size=len(train_data),shuffle=shuffle,num_workers=num_workers)
+        self.testloader = DataLoader(test_data,batch_size=len(test_data),shuffle=shuffle,num_workers=num_workers)
+        self.dataset_name = dataset_name
+
+
+    def get_model(self, name="mtn", **kwargs):
+        self.name_map_dic = {
+            "mtn" : MultinomialNB,
+            "gau" : GaussianNB,
+            "cat" : CategoricalNB,
+            "com" : ComplementNB,
+            "ber" : BernoulliNB,
+        }
+        name_list = list(self.name_map_dic.keys())
+        if name not in name_list:
+            raise ValueError("Trainer name should be one of these {}".format(name_list))
+        self.model = name
+        self.algo = self.name_map_dic[self.model](**kwargs)
+ 
+    def __call__(self,**kwargs):
+        for _,data in enumerate(self.trainloader,1):
+            data = data
+            x,y = np.squeeze(data[0].numpy(),axis=1),np.squeeze(data[1].numpy(),axis=1)
+            self.algo = self.algo.fit(x,y)
+            train_accuracy = self.algo.score(x,y)
+            print("Train Accuracy: {}".format(train_accuracy))
+        for _,data in enumerate(self.testloader,1):
+            data = data
+            x,y = np.squeeze(data[0].numpy(),axis=1),np.squeeze(data[1].numpy(),axis=1)
+            test_accuracy = self.algo.score(x,y)
+            print("Test Accuracy: {}".format(test_accuracy))
+
+
+
+    
+
         
 
-
 if __name__=="__main__":
-    trainer = Classifier()
-    trainer.get_data()
-    trainer.get_model(input_size=2,output_size=1)
-    trainer.get_optimizer(lr=0.001)
-    trainer.get_loss()
-    trainer.get_metric()
-    trainer(epochs=10)
+    trainer = Trainer("naive_bayes")()
+    trainer.get_data(n_gram_feat=True)
+    trainer.get_model()
+    # trainer.get_optimizer(lr=0.001)
+    # trainer.get_loss()
+    # trainer.get_metric()
+    trainer()
+
     
                
