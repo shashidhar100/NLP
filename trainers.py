@@ -20,27 +20,9 @@ from torch.utils.data import DataLoader
 import os
 from sklearn.naive_bayes import MultinomialNB,BernoulliNB,CategoricalNB,ComplementNB,GaussianNB
 from torch.utils.tensorboard import SummaryWriter
-import logging
-logger = logging.getLogger()
 
 
 import sys
-
-class Logger(object):
-    def __init__(self,path="logfile.log"):
-        self.terminal = sys.stdout
-        self.log = open(path, "a")
-   
-    def write(self, message):
-        self.terminal.write(message)
-        self.log.write(message)  
-
-    def flush(self):
-        # this flush method is needed for python 3 compatibility.
-        # this handles the flush command by doing nothing.
-        # you might want to specify some extra behavior here.
-        pass  
-
 
 class Trainer:
     def __init__(self,name="classifier"):
@@ -68,7 +50,11 @@ class BaseTrainer:
     def get_data(self,dataset_name="twitter",batch_size=200,shuffle=True,num_workers=0,**kwargs):
         train_data =  Dataset(dataset_name=dataset_name)(train=True,**kwargs)
         test_data =  Dataset(dataset_name=dataset_name)(train=False,test_preprocessor=train_data.preprocessor,**kwargs)
-        
+        if isinstance(batch_size,str):
+            if batch_size == "full":
+                batch_size = len(train_data)
+            else:
+                raise ValueError("Only str allowed for batch_size is 'full' otherwise it is int")
         self.trainloader = DataLoader(train_data,batch_size=batch_size,shuffle=shuffle,num_workers=num_workers)
         self.testloader = DataLoader(test_data,batch_size=batch_size,shuffle=shuffle,num_workers=num_workers)
         self.dataset_name = dataset_name
@@ -103,29 +89,6 @@ class BaseTrainer:
             os.mkdir(experiment_dir)
         self.save_dir_path = experiment_dir
     
-    def log_output(self):
-        
-
-        # Create handlers
-        c_handler = logging.StreamHandler()
-        f_handler = logging.FileHandler(os.path.join(self.save_dir_path,"logs.log"))
-        logger.setLevel(logging.INFO)
-
-        # Create formatters and add it to handlers
-        c_format = logging.Formatter('%(levelname)s - %(message)s')
-        f_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        c_handler.setFormatter(c_format)
-        f_handler.setFormatter(f_format)
-
-        # Add handlers to the logger
-        logger.addHandler(c_handler)
-        logger.addHandler(f_handler)
-
-
-
-        
-
-
 class Classifier(BaseTrainer):
     def __init__(self,**kwargs):
         super(Classifier,self).__init__(**kwargs)
@@ -197,19 +160,12 @@ class Classifier(BaseTrainer):
             print("Epoch {}/{}: 'Train Loss': {} 'Test Loss': {} 'Train Accuracy': {} 'Test Accuracy': {}\n".format(epoch,epochs,train_loss,test_loss,train_accuracy,test_accuracy))
             logger.info("Epoch {}/{}: 'Train Loss': {} 'Test Loss': {} 'Train Accuracy': {} 'Test Accuracy': {}\n".format(epoch,epochs,train_loss,test_loss,train_accuracy,test_accuracy))
 
+
+
 class NaiveBayesClassifier(BaseTrainer):
     def __init__(self,**kwargs):
         super(NaiveBayesClassifier,self).__init__()
         
-    def get_data(self, dataset_name="twitter", batch_size=None, shuffle=True, num_workers=0, **kwargs):
-        train_data =  Dataset(dataset_name=dataset_name)(train=True,**kwargs)
-        test_data =  Dataset(dataset_name=dataset_name)(train=False,test_preprocessor=train_data.preprocessor,**kwargs)
-        
-        self.trainloader = DataLoader(train_data,batch_size=len(train_data),shuffle=shuffle,num_workers=num_workers)
-        self.testloader = DataLoader(test_data,batch_size=len(test_data),shuffle=shuffle,num_workers=num_workers)
-        self.dataset_name = dataset_name
-
-
     def get_model(self, name="mtn", **kwargs):
         self.name_map_dic = {
             "mtn" : MultinomialNB,
@@ -245,7 +201,7 @@ class NaiveBayesClassifier(BaseTrainer):
 
 if __name__=="__main__":
     trainer = Trainer("naive_bayes")()
-    trainer.get_data(n_gram_feat=False,n_gram_method="tfidf")
+    trainer.get_data(n_gram_feat=False,batch_size="full",n_gram_method="tfidf")
     trainer.get_model()
     # trainer.get_optimizer(lr=0.001)
     # trainer.get_loss()
