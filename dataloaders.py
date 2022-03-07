@@ -5,10 +5,10 @@ nltk.download("wordnet")
 from nltk.corpus import twitter_samples
 import random
 import numpy as np
-
+from preprocessor import Preprocessor
 from torch.utils.data import Dataset
 
-from preprocessor import Preprocessor
+
 
 
 class Dataset:
@@ -32,6 +32,7 @@ class Twitter(Dataset):
                 stem = False,
                 n_gram_feat = False,
                 n_gram_method = None,
+                test_preprocessor = None,
                 **kwargs):
         self.train = train
         all_positive_tweets = twitter_samples.strings('positive_tweets.json')
@@ -49,7 +50,8 @@ class Twitter(Dataset):
         self.train_y = np.append(np.ones((len(pos_train_x), 1)), np.zeros((len(neg_train_x), 1)), axis=0)
         self.test_y = np.append(np.ones((len(pos_test_x), 1)), np.zeros((len(neg_test_x), 1)), axis=0)
         
-        self.preprocessor =  Preprocessor(name="LR_twitter")(train_x=self.train_x,
+        if self.train:
+            self.preprocessor =  Preprocessor(name="LR_twitter")(train_x=self.train_x,
                                                             train_y=self.train_y,
                                                             rm_punc = rm_punc,
                                                             lema = lema,
@@ -57,6 +59,11 @@ class Twitter(Dataset):
                                                             n_gram_feat = n_gram_feat,
                                                             n_gram_method = n_gram_method,
                                                             **kwargs)
+        else:
+            if test_preprocessor == None:
+                raise ValueError("Please provide the preprocessor object for test data")
+            else:
+                self.preprocessor = test_preprocessor
         
     def __getitem__(self,index):
         if self.train:

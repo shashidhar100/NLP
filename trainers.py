@@ -1,5 +1,6 @@
 # from sklearn.utils import shuffle
 from re import M, S
+from unicodedata import name
 import torch
 import torch.nn as nn
 from tqdm import tqdm
@@ -66,7 +67,7 @@ class BaseTrainer:
         
     def get_data(self,dataset_name="twitter",batch_size=200,shuffle=True,num_workers=0,**kwargs):
         train_data =  Dataset(dataset_name=dataset_name)(train=True,**kwargs)
-        test_data =  Dataset(dataset_name=dataset_name)(train=False,**kwargs)
+        test_data =  Dataset(dataset_name=dataset_name)(train=False,test_preprocessor=train_data.preprocessor,**kwargs)
         
         self.trainloader = DataLoader(train_data,batch_size=batch_size,shuffle=shuffle,num_workers=num_workers)
         self.testloader = DataLoader(test_data,batch_size=batch_size,shuffle=shuffle,num_workers=num_workers)
@@ -202,7 +203,7 @@ class NaiveBayesClassifier(BaseTrainer):
         
     def get_data(self, dataset_name="twitter", batch_size=None, shuffle=True, num_workers=0, **kwargs):
         train_data =  Dataset(dataset_name=dataset_name)(train=True,**kwargs)
-        test_data =  Dataset(dataset_name=dataset_name)(train=False,**kwargs)
+        test_data =  Dataset(dataset_name=dataset_name)(train=False,test_preprocessor=train_data.preprocessor,**kwargs)
         
         self.trainloader = DataLoader(train_data,batch_size=len(train_data),shuffle=shuffle,num_workers=num_workers)
         self.testloader = DataLoader(test_data,batch_size=len(test_data),shuffle=shuffle,num_workers=num_workers)
@@ -244,7 +245,7 @@ class NaiveBayesClassifier(BaseTrainer):
 
 if __name__=="__main__":
     trainer = Trainer("naive_bayes")()
-    trainer.get_data(n_gram_feat=True)
+    trainer.get_data(n_gram_feat=False,n_gram_method="tfidf")
     trainer.get_model()
     # trainer.get_optimizer(lr=0.001)
     # trainer.get_loss()

@@ -45,7 +45,7 @@ class LR_Twitter:
             self.n_gram_methods_map = {"bog":CountVectorizer,"tfidf":TfidfVectorizer}
             if self.n_gram_method == None:
                 self.n_gram_method = "bog"
-            self.build_word_matrix(train_x)
+            self.build_word_matrix(train_x,**kwargs)
         else:
             self.tokenizer = TweetTokenizer(preserve_case=False, strip_handles=True,
                                 reduce_len=True)
